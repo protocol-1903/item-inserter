@@ -24,7 +24,7 @@ data:extend{
     },
     stack_size = 1,
     icon = "__item-inserter__/selection-tool.png",
-    flags = { "only-in-cursor", "not-stackable" }
+    flags = { "only-in-cursor", "not-stackable", "spawnable" }
   },
   {
     type = "custom-input",
@@ -34,6 +34,10 @@ data:extend{
   },
   -- {
   --   type = "shortcut",
-  --   name = "item-inserter-shortcut"
+  --   name = "item-inserter-shortcut",
+  --   icon = "__item-inserter__/selection-tool.png",
+  --   action = "spawn-item",
+  --   item_to_spawn = "item-inserter-tool",
+  --   associated_control_input = "item-inserter-shortcut"
   -- }
 }
