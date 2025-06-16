@@ -31,5 +31,9 @@ data:extend{
     name = "item-inserter-shortcut",
     key_sequence = "ALT + P",
     action = "lua"
-  }
+  },
+  -- {
+  --   type = "shortcut",
+  --   name = "item-inserter-shortcut"
+  -- }
 }

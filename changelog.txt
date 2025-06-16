@@ -1,4 +1,12 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.0.1
+Date: 2025-06-16
+  Changes:
+    - Added proper instructions on how to use the tool
+    - Clears the cursor when the GUI is opened, and readd the selection tool when the gui is closed.
+  Bugfixes:
+    - Fixed a crash when holding an invalid item in the cursor
+---------------------------------------------------------------------------------------------------
 Version: 1.0.0
 Date: 2025-06-16
   Features:

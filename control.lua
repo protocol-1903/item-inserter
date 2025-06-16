@@ -7,7 +7,8 @@ script.on_event("item-inserter-shortcut", function (event)
 
   if not player.cursor_stack or player.is_cursor_empty() or player.cursor_stack.name ~= "item-inserter-tool" then
     player.cursor_stack.set_stack("item-inserter-tool")
-  elseif not player.gui.center["item-inserter-window"] then -- run gui creation code
+  elseif not player.is_cursor_empty() and player.cursor_stack.name ~= "item-inserter-tool" not player.gui.center["item-inserter-window"] then -- run gui creation code
+    player.clear_cursor()
     local window = player.gui.center.add{
       type = "frame",
       name = "item-inserter-window",
@@ -157,6 +158,7 @@ local function save_data(event)
       count = window.main.flow.count.text
     }
     window.destroy()
+    game.players[event.player_index].cursor_stack.set_stack("item-inserter-tool")
   end
 end
 
