@@ -1,3 +1,69 @@
+local function create_gui(player)
+
+  if not storage[player.index] then
+    storage[player.index] = {}
+  end
+
+  if player.gui.center["item-inserter-window"] then return end
+
+  local window = player.gui.center.add{
+    type = "frame",
+    name = "item-inserter-window",
+    direction = "vertical",
+    style = "no_header_filler_frame",
+    caption = {"item-inserter.title"}
+  }
+  player.opened = window
+
+  -- main content
+  window = window.add{
+    type = "frame",
+    name = "main",
+    direction = "vertical",
+    style = "inside_shallow_frame_with_padding_and_vertical_spacing"
+  }
+
+  local flow = window.add{
+    type = "flow",
+    name = "flow",
+    style = "player_input_horizontal_flow",
+    direction = "horizontal"
+  }
+
+  flow.add{
+    type = "choose-elem-button",
+    name = "item",
+    style = "slot_button_in_shallow_frame",
+    elem_type = "item",
+    item = storage[player.index].name
+  }
+
+  field = flow.add{
+    type = "textfield",
+    name = "count",
+    style = "very_short_number_textfield",
+    numeric = true,
+    lose_focus_on_confirm = true,
+    text = storage[player.index].count or 1
+  }
+
+  flow = window.add{
+    type = "flow",
+    style = "dialog_buttons_horizontal_flow",
+    direction = "horizontal"
+  }
+
+  flow.add{
+    type = "empty-widget"
+  }.style.horizontally_stretchable = true
+
+  flow.add{
+    type = "button",
+    style = "confirm_button",
+    caption = {"item-inserter.confirm"}
+  }
+end
+
 script.on_event("item-inserter-shortcut", function (event)
   local player = game.players[event.player_index]
 
@@ -6,70 +72,17 @@ script.on_event("item-inserter-shortcut", function (event)
   end
 
   if not player.cursor_stack or player.is_cursor_empty() or player.cursor_stack.name ~= "item-inserter-tool" then
+    player.clear_cursor()
     player.cursor_stack.set_stack("item-inserter-tool")
   elseif not player.is_cursor_empty() and player.cursor_stack.name == "item-inserter-tool" and not player.gui.center["item-inserter-window"] then -- run gui creation code
     player.clear_cursor()
-    local window = player.gui.center.add{
-      type = "frame",
-      name = "item-inserter-window",
-      direction = "vertical",
-      style = "no_header_filler_frame",
-      caption = {"item-inserter.title"}
-    }
-
-    -- shenanegins to open in the middle
-
-    player.opened = window
-
-    -- main content
-    window = window.add{
-      type = "frame",
-      name = "main",
-      direction = "vertical",
-      style = "inside_shallow_frame_with_padding_and_vertical_spacing"
-    }
-
-    local flow = window.add{
-      type = "flow",
-      name = "flow",
-      style = "player_input_horizontal_flow",
-      direction = "horizontal"
-    }
-
-    flow.add{
-      type = "choose-elem-button",
-      name = "item",
-      style = "slot_button_in_shallow_frame",
-      elem_type = "item",
-      item = storage[player.index].name
-    }
-
-    field = flow.add{
-      type = "textfield",
-      name = "count",
-      style = "very_short_number_textfield",
-      numeric = true,
-      lose_focus_on_confirm = true,
-      text = storage[player.index].count or 1
-    }
-
-    flow = window.add{
-      type = "flow",
-      style = "dialog_buttons_horizontal_flow",
-      direction = "horizontal"
-    }
-
-    flow.add{
-      type = "empty-widget"
-    }.style.horizontally_stretchable = true
-
-    flow.add{
-      type = "button",
-      style = "confirm_button",
-      caption = {"item-inserter.confirm"}
-    }
-
+    create_gui(player)
   end
+end)
+
+script.on_event(defines.events.on_lua_shortcut, function (event)
+  if event.prototype_name ~= "item-inserter-gui-shortcut" then return end
+  create_gui(game.players[event.player_index])
 end)
 
 script.on_event(defines.events.on_player_selected_area, function (event)

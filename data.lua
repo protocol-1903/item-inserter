@@ -32,12 +32,23 @@ data:extend{
     key_sequence = "ALT + P",
     action = "lua"
   },
-  -- {
-  --   type = "shortcut",
-  --   name = "item-inserter-shortcut",
-  --   icon = "__item-inserter__/selection-tool.png",
-  --   action = "spawn-item",
-  --   item_to_spawn = "item-inserter-tool",
-  --   associated_control_input = "item-inserter-shortcut"
-  -- }
+  {
+    type = "shortcut",
+    name = "item-inserter-tool-shortcut",
+    icon = "__item-inserter__/selection-tool.png",
+    small_icon = "__item-inserter__/selection-tool.png",
+    style = "green",
+    action = "spawn-item",
+    item_to_spawn = "item-inserter-tool",
+    associated_control_input = "item-inserter-shortcut"
+  },
+  {
+    type = "shortcut",
+    name = "item-inserter-gui-shortcut",
+    icon = "__item-inserter__/selection-tool.png",
+    small_icon = "__item-inserter__/selection-tool.png",
+    style = "blue",
+    action = "lua",
+    associated_control_input = "item-inserter-shortcut"
+  }
 }
