@@ -30,6 +30,13 @@ data:extend{
     type = "custom-input",
     name = "item-inserter-shortcut",
     key_sequence = "ALT + P",
+    action = "spawn-item",
+    item_to_spawn = "item-inserter-tool"
+  },
+  {
+    type = "custom-input",
+    name = "item-inserter-gui-shortcut",
+    key_sequence = "ALT + SHIFT + P",
     action = "lua"
   },
   {
@@ -49,6 +56,6 @@ data:extend{
     small_icon = "__item-inserter__/selection-tool.png",
     style = "blue",
     action = "lua",
-    associated_control_input = "item-inserter-shortcut"
+    associated_control_input = "item-inserter-gui-shortcut"
   }
 }

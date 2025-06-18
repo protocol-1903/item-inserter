@@ -64,20 +64,8 @@ local function create_gui(player)
   }
 end
 
-script.on_event("item-inserter-shortcut", function (event)
-  local player = game.players[event.player_index]
-
-  if not storage[player.index] then
-    storage[player.index] = {}
-  end
-
-  if not player.cursor_stack or player.is_cursor_empty() or player.cursor_stack.name ~= "item-inserter-tool" then
-    player.clear_cursor()
-    player.cursor_stack.set_stack("item-inserter-tool")
-  elseif not player.is_cursor_empty() and player.cursor_stack.name == "item-inserter-tool" and not player.gui.center["item-inserter-window"] then -- run gui creation code
-    player.clear_cursor()
-    create_gui(player)
-  end
+script.on_event("item-inserter-gui-shortcut", function (event)
+  create_gui(game.players[event.player_index])
 end)
 
 script.on_event(defines.events.on_lua_shortcut, function (event)
@@ -171,6 +159,7 @@ local function save_data(event)
       count = window.main.flow.count.text
     }
     window.destroy()
+    game.players[event.player_index].clear_cursor()
     game.players[event.player_index].cursor_stack.set_stack("item-inserter-tool")
   end
 end
