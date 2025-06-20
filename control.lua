@@ -74,6 +74,7 @@ script.on_event(defines.events.on_lua_shortcut, function (event)
 end)
 
 local recipes_per_category = {}
+local fuels_per_category = {}
 
 script.on_event(defines.events.on_player_selected_area, function (event)
   if event.item ~= "item-inserter-tool" then return end
@@ -85,6 +86,7 @@ script.on_event(defines.events.on_player_selected_area, function (event)
 
   local recipes = {}
   local furnaces = {}
+  local fueled_entities = {}
   local to_create_requests = {}
 
   for _, entity in pairs(event.entities) do
@@ -109,7 +111,7 @@ script.on_event(defines.events.on_player_selected_area, function (event)
         name = item.name
       } then
         -- queue proxy request
-        to_create_requests[#to_create_requests+1] = {entity = entity, slot = recipes[recipe.name]}
+        to_create_requests[#to_create_requests+1] = {entity = entity, slot = recipes[recipe.name], inventory = defines.inventory.crafter_input}
       end
     elseif entity.type == "furnace" then
       if furnaces[entity.type] == nil then
@@ -120,7 +122,7 @@ script.on_event(defines.events.on_player_selected_area, function (event)
       -- if this furnace has an appliccable recipe, and has empty input
       if furnaces[entity.type] and entity.get_inventory(defines.inventory.crafter_input).get_item_count(item.name) >= entity.get_inventory(defines.inventory.crafter_input).get_item_count() then
         -- queue proxy request
-        to_create_requests[#to_create_requests+1] = {entity = entity, slot = 0}
+        to_create_requests[#to_create_requests+1] = {entity = entity, slot = 0, inventory = defines.inventory.crafter_input}
       end
     elseif entity.type == "entity-ghost" then
       if entity.ghost_type == "assembling-machine" and entity.get_recipe() then
@@ -139,7 +141,7 @@ script.on_event(defines.events.on_player_selected_area, function (event)
         -- if this entity is using the right recipe (and not full)
         if recipes[recipe.name] >= 0 then
           -- queue proxy request
-          to_create_requests[#to_create_requests+1] = {entity = entity, slot = recipes[recipe.name]}
+          to_create_requests[#to_create_requests+1] = {entity = entity, slot = recipes[recipe.name], inventory = defines.inventory.crafter_input}
         end
       elseif entity.ghost_type == "furnace" then
         if furnaces[entity.ghost_type] == nil then
@@ -156,7 +158,7 @@ script.on_event(defines.events.on_player_selected_area, function (event)
           for category in pairs(entity.ghost_prototype.crafting_categories or {}) do
             for recipe in pairs(recipes_per_category[category] or {}) do
               if prototypes.recipe[recipe].ingredients[1].name == item.name then
-                to_create_requests[#to_create_requests+1] = {entity = entity, slot = 0}
+                to_create_requests[#to_create_requests+1] = {entity = entity, slot = 0, inventory = defines.inventory.crafter_input}
                 found = true
                 break
               end
@@ -168,8 +170,34 @@ script.on_event(defines.events.on_player_selected_area, function (event)
         -- if this furnace has an appliccable recipe
         if furnaces[entity.ghost_type] then
           -- queue proxy request
-          to_create_requests[#to_create_requests+1] = {entity = entity, slot = 0}
+          to_create_requests[#to_create_requests+1] = {entity = entity, slot = 0, inventory = defines.inventory.crafter_input}
         end
+      end
+    end
+
+    -- fuel requesting (warning: slow!)
+    if entity.type == "entity-ghost" and entity.ghost_prototype.burner_prototype or entity.prototype.burner_prototype then
+      local source = entity.type == "entity-ghost" and entity.ghost_prototype.burner_prototype or entity.prototype.burner_prototype
+      for category in pairs(source.fuel_categories or {}) do
+        if not fuels_per_category[category] then
+          fuels_per_category[category] = {}
+          for _, item in pairs(prototypes.item) do
+            fuels_per_category[category][item.name] = item.fuel_category == category or nil
+          end
+        end
+      end
+
+      local found = false
+      for category in pairs(source.fuel_categories or {}) do
+        for fuel in pairs(fuels_per_category[category] or {}) do
+          if fuel == item.name then
+            to_create_requests[#to_create_requests+1] = {entity = entity, slot = 0, inventory = defines.inventory.fuel}
+            found = true
+            break
+          end
+        end
+        -- if a valid fuel is found, no need to keep looking
+        if found then break end
       end
     end
   end
@@ -185,7 +213,7 @@ script.on_event(defines.events.on_player_selected_area, function (event)
         modules = {{
           id = { name = item.name },
           items = { in_inventory = {{
-            inventory = defines.inventory.crafter_input,
+            inventory = metadata.inventory,
             stack = metadata.slot,
             count = item.count
           }}}
@@ -196,7 +224,7 @@ script.on_event(defines.events.on_player_selected_area, function (event)
       insert_plan[#insert_plan+1] = {
         id = { name = item.name },
         items = { in_inventory = {{
-          inventory = defines.inventory.crafter_input,
+          inventory = metadata.inventory,
           stack = metadata.slot,
           count = item.count
         }}}

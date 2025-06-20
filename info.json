@@ -1,6 +1,6 @@
 {
   "name": "item-inserter",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "title": "Item Inserter",
   "description": "Easily create item insertion request for entities using a selection tool! Great for starting up builds that need some items to bootstrap.\nRequested by JigSaW on Discord.",
   "author": "protocol_1903",

@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.0.6
+Date: 2025-06-20
+  Features:
+    - Added support to fuel inventories of standard and ghost entities. Includes stuff like reactors, inserters, mining drills, etc
+---------------------------------------------------------------------------------------------------
 Version: 1.0.5
 Date: 2025-06-20
   Features:
