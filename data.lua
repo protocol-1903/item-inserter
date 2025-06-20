@@ -9,7 +9,7 @@ data:extend{
       mode = {
         "buildable-type",
         "same-force",
-        -- "entity-ghost"
+        "entity-ghost"
       }
     },
     alt_select = {
@@ -19,7 +19,7 @@ data:extend{
       mode = {
         "buildable-type",
         "same-force",
-        -- "entity-ghost"
+        "entity-ghost"
       }
     },
     stack_size = 1,

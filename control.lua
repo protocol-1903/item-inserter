@@ -73,6 +73,8 @@ script.on_event(defines.events.on_lua_shortcut, function (event)
   create_gui(game.players[event.player_index])
 end)
 
+local recipes_per_category = {}
+
 script.on_event(defines.events.on_player_selected_area, function (event)
   if event.item ~= "item-inserter-tool" then return end
 
@@ -89,7 +91,7 @@ script.on_event(defines.events.on_player_selected_area, function (event)
     local type = entity.type == "entity-ghost" and entity.ghost_type or entity.type
     local name = entity.name == "entity-ghost" and entity.ghost_name or entity.name
 
-    if type == "assembling-machine" and entity.get_recipe() then
+    if entity.type == "assembling-machine" and entity.get_recipe() then
       local recipe = entity.get_recipe()
       if not recipes[recipe.name] then
         recipes[recipe.name] = -1
@@ -109,42 +111,98 @@ script.on_event(defines.events.on_player_selected_area, function (event)
         -- queue proxy request
         to_create_requests[#to_create_requests+1] = {entity = entity, slot = recipes[recipe.name]}
       end
-    elseif type == "furnace" then
-      if furnaces[type] == nil then
-        furnaces[type] = entity.get_inventory(defines.inventory.crafter_input).can_insert{
+    elseif entity.type == "furnace" then
+      if furnaces[entity.type] == nil then
+        furnaces[entity.type] = entity.get_inventory(defines.inventory.crafter_input).can_insert{
         name = item.name
       }
       end
-      -- if this furnace has an appliccable recipe
-      if furnaces[type] or entity.get_inventory(defines.inventory.crafter_input).can_insert{
-        name = item.name
-      } then
+      -- if this furnace has an appliccable recipe, and has empty input
+      if furnaces[entity.type] and entity.get_inventory(defines.inventory.crafter_input).get_item_count(item.name) >= entity.get_inventory(defines.inventory.crafter_input).get_item_count() then
         -- queue proxy request
         to_create_requests[#to_create_requests+1] = {entity = entity, slot = 0}
+      end
+    elseif entity.type == "entity-ghost" then
+      if entity.ghost_type == "assembling-machine" and entity.get_recipe() then
+        local recipe = entity.get_recipe()
+        if not recipes[recipe.name] then
+          recipes[recipe.name] = -1
+          for i, ingredient in pairs(recipe.ingredients) do
+            if ingredient.name == item.name then
+              -- save the slot index so we know where to insert it
+              recipes[recipe.name] = i - 1
+              break
+            end
+          end
+        end
+
+        -- if this entity is using the right recipe (and not full)
+        if recipes[recipe.name] >= 0 then
+          -- queue proxy request
+          to_create_requests[#to_create_requests+1] = {entity = entity, slot = recipes[recipe.name]}
+        end
+      elseif entity.ghost_type == "furnace" then
+        if furnaces[entity.ghost_type] == nil then
+          -- make sure we have category/recipe data saved
+          for category in pairs(entity.ghost_prototype.crafting_categories or {}) do
+            recipes_per_category[category] = recipes_per_category[category] or {}
+            for _, recipe in pairs(prototypes.recipe) do
+              -- recipe must be of this category and only have one ingredient (i.e. furnace compatible)
+              recipes_per_category[category][recipe.name] = recipe.has_category(category) and #recipe.ingredients == 1 or nil
+            end
+          end
+
+          local found = false
+          for category in pairs(entity.ghost_prototype.crafting_categories or {}) do
+            for recipe in pairs(recipes_per_category[category] or {}) do
+              if prototypes.recipe[recipe].ingredients[1].name == item.name then
+                to_create_requests[#to_create_requests+1] = {entity = entity, slot = 0}
+                found = true
+                break
+              end
+            end
+            -- if a valid recipe is found, no need to keep looking
+            if found then break end
+          end
+        end
+        -- if this furnace has an appliccable recipe
+        if furnaces[entity.ghost_type] then
+          -- queue proxy request
+          to_create_requests[#to_create_requests+1] = {entity = entity, slot = 0}
+        end
       end
     end
   end
 
   for _, metadata in pairs(to_create_requests) do
-    metadata.entity.surface.create_entity{
-      name = "item-request-proxy",
-      position = metadata.entity.position,
-      player = player,
-      force = metadata.entity.force,
-      target = metadata.entity,
-      modules = {{
-        id = {
-          name = item.name
-        },
-        items = {
-          in_inventory = {{
+    if metadata.entity.type ~= "entity-ghost" then
+      metadata.entity.surface.create_entity{
+        name = "item-request-proxy",
+        position = metadata.entity.position,
+        player = player,
+        force = metadata.entity.force,
+        target = metadata.entity,
+        modules = {{
+          id = { name = item.name },
+          items = { in_inventory = {{
             inventory = defines.inventory.crafter_input,
             stack = metadata.slot,
             count = item.count
-          }}
-        }
-      }}
-    }
+          }}}
+        }}
+      }
+    else
+      local insert_plan = metadata.entity.insert_plan or {}
+      insert_plan[#insert_plan+1] = {
+        id = { name = item.name },
+        items = { in_inventory = {{
+          inventory = defines.inventory.crafter_input,
+          stack = metadata.slot,
+          count = item.count
+        }}}
+      }
+      metadata.entity.insert_plan = insert_plan
+    end
   end
 end)
 
