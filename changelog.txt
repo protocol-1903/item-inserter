@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.0.8
+Date: 2025-06-20
+  Features:
+    - Added support to crafting result slots of assemblers and furnaces. Ghost support included.
+---------------------------------------------------------------------------------------------------
 Version: 1.0.7
 Date: 2025-06-20
   Features:
