@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.0.7
+Date: 2025-06-20
+  Features:
+    - Added support to burnt result of fuel inventories. Only applies to reactors in vanilla factorio
+---------------------------------------------------------------------------------------------------
 Version: 1.0.6
 Date: 2025-06-20
   Features:

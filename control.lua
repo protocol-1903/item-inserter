@@ -75,6 +75,7 @@ end)
 
 local recipes_per_category = {}
 local fuels_per_category = {}
+local fuels_per_burnt_result = {}
 
 script.on_event(defines.events.on_player_selected_area, function (event)
   if event.item ~= "item-inserter-tool" then return end
@@ -87,6 +88,7 @@ script.on_event(defines.events.on_player_selected_area, function (event)
   local recipes = {}
   local furnaces = {}
   local fueled_entities = {}
+  local burnt_entities = {}
   local to_create_requests = {}
 
   for _, entity in pairs(event.entities) do
@@ -183,6 +185,12 @@ script.on_event(defines.events.on_player_selected_area, function (event)
           fuels_per_category[category] = {}
           for _, item in pairs(prototypes.item) do
             fuels_per_category[category][item.name] = item.fuel_category == category or nil
+            if item.burnt_result then
+              -- save the burnt result and it's associated item
+              -- but since multiple items can have the same burnt result, must be a table
+              fuels_per_burnt_result[item.burnt_result.name] = fuels_per_burnt_result[item.burnt_result.name] or {}
+              fuels_per_burnt_result[item.burnt_result.name][item.name] = true
+            end
           end
         end
       end
@@ -198,6 +206,21 @@ script.on_event(defines.events.on_player_selected_area, function (event)
         end
         -- if a valid fuel is found, no need to keep looking
         if found then break end
+      end
+
+      if fuels_per_burnt_result[item.name] then
+        found = false
+        for category in pairs(source.fuel_categories or {}) do
+          for fuel in pairs(fuels_per_category[category] or {}) do
+            if fuels_per_burnt_result[item.name][fuel] then
+              to_create_requests[#to_create_requests+1] = {entity = entity, slot = 0, inventory = defines.inventory.burnt_result}
+              found = true
+              break
+            end
+          end
+          -- if a valid fuel is found, no need to keep looking
+          if found then break end
+        end
       end
     end
   end
