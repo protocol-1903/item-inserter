@@ -281,7 +281,6 @@ script.on_event(defines.events.on_player_selected_area, function (event)
       metadata.entity.surface.create_entity{
         name = "item-request-proxy",
         position = metadata.entity.position,
-        player = player,
         force = metadata.entity.force,
         target = metadata.entity,
         modules = {{
