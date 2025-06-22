@@ -59,3 +59,8 @@ data:extend{
     associated_control_input = "item-inserter-gui-shortcut"
   }
 }
+
+-- uncomment to generate a new thumbnail
+-- data.raw["assembling-machine"]["assembling-machine-2"].icons_positioning = {
+-- {inventory_index = defines.inventory.crafter_input},
+-- }
