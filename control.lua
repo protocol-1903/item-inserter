@@ -83,7 +83,7 @@ script.on_event(defines.events.on_player_selected_area, function (event)
   local player = game.players[event.player_index]
   local item = storage[player.index]
 
-  if not item.name or item.count == 0 then return end
+  if not item or not item.name or item.count == 0 then return end
 
   local recipes_ingredients = {}
   local recipes_products = {}

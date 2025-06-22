@@ -3,6 +3,8 @@ Version: 1.0.10
 Date: ???
   Changes:
     - Updated thumbnail because Quezler had an aneurysm
+  Bugfixes:
+    - Fixed a crash when no item has been configured yet. Resolves https://github.com/protocol-1903/item-inserter/issues/2
 ---------------------------------------------------------------------------------------------------
 Version: 1.0.9
 Date: 2025-06-22
