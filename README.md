@@ -4,4 +4,7 @@ Easily create item insertion request for entities using a selection tool! Great 
 Press the keybind [Default: `Alt + P`] once to select the tool, and a second time to open the configuration GUI.
 Please report any bugs here or on [github](https://github.com/protocol-1903/item-inserter)
 
-Icon, thumbnail, and requested by JigSaW on Discord. If you have a mod idea, let me know and I can look into it.
+Icon, thumbnail, and requested by JigSaW on Discord.
+
+My mods are made 100% by humans, with no computer generated code or graphics.
+If you have a mod idea, let me know and I can look into it.

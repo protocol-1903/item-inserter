@@ -1,4 +1,21 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.1.0
+Date: 2026-07-23
+  Features:
+    - Updated for 2.1
+    - Added a setting to enable/disable inserting to fuel slots
+    - Added a setting to enable/disable inserting to the output of furnaces
+    - Added a setting to prioritize input or output of furnaces when both are a valid locaiton for the item
+    - Added a generic insertion mode when no item is selected, will insert enough items for N recipe crafts (only works with assembling machines)
+  Changes:
+    - Merged the the GUI and selection tool shortcuts, again
+    - Updated license
+    - Rebuilt logic from the ground up to cover all the missing edge cases (damn you furnaces)
+    - Removed ghost support, for now
+    - Removed 'burnt output' of fuel support, for now
+  Bugfixes:
+    - Fixed that using the selection tool would override existing requests
+---------------------------------------------------------------------------------------------------
 Version: 1.0.10
 Date: 2025-06-23
   Changes:

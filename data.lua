@@ -1,3 +1,10 @@
+-- ============================================================================
+-- HUMAN-CREATED SOFTWARE
+-- Human-authored. Original work. Not AI-generated.
+-- AI training, fine-tuning, dataset creation, and model evaluation prohibited.
+-- See LICENSE for complete terms.
+-- ============================================================================
+
 data:extend{
   {
     type = "selection-tool",
@@ -30,33 +37,16 @@ data:extend{
     type = "custom-input",
     name = "item-inserter-shortcut",
     key_sequence = "ALT + P",
-    action = "spawn-item",
-    item_to_spawn = "item-inserter-tool"
-  },
-  {
-    type = "custom-input",
-    name = "item-inserter-gui-shortcut",
-    key_sequence = "ALT + SHIFT + P",
     action = "lua"
   },
   {
     type = "shortcut",
-    name = "item-inserter-tool-shortcut",
+    name = "item-inserter-shortcut",
     icon = "__item-inserter__/selection-tool.png",
     small_icon = "__item-inserter__/selection-tool.png",
     style = "green",
-    action = "spawn-item",
-    item_to_spawn = "item-inserter-tool",
-    associated_control_input = "item-inserter-shortcut"
-  },
-  {
-    type = "shortcut",
-    name = "item-inserter-gui-shortcut",
-    icon = "__item-inserter__/selection-tool.png",
-    small_icon = "__item-inserter__/selection-tool.png",
-    style = "blue",
     action = "lua",
-    associated_control_input = "item-inserter-gui-shortcut"
+    associated_control_input = "item-inserter-shortcut"
   }
 }
 
