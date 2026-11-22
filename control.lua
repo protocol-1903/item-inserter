@@ -474,10 +474,10 @@ script.on_event(defines.events.on_player_selected_area, function (event)
       end
     end
 
-    if item_data.item and player.mod_settings["insert-into-fuel"].value and prototypes.item[item_data.item].fuel_category then
+    if item_data.item and player.mod_settings["insert-into-fuel"].value and prototypes.item[item_data.item].fuel_categories then
       if entity.type == "entity-ghost" then
-        game.print("attempt to insert fuel into ghost, if possible", {skip = defines.print_skip.never})
-      elseif fuel_inventory then
+        game.print("ghost fuel insertion not yet implemented, try again later", {skip = defines.print_skip.never})
+      elseif fuel_inventory and fuel_inventory.name == "fuel" then
         local plan = entity.item_request_proxy and entity.item_request_proxy.insert_plan ---@cast plan -?
         local inventory = {}
         if plan then
@@ -491,7 +491,7 @@ script.on_event(defines.events.on_player_selected_area, function (event)
           end
         end
         for i = 1, #fuel_inventory do
-          local stack = fuel_inventory[i]
+          local stack = fuel_inventory[i] --[[@as LuaItemStack]]
           inventory[i] = inventory[i] or stack.valid_for_read and stack.name or nil
           inventory[i] = inventory[i] or fuel_inventory.get_filter(i) and fuel_inventory.get_filter(i).name or nil
         end
@@ -504,7 +504,9 @@ script.on_event(defines.events.on_player_selected_area, function (event)
               item = item_data.item,
               count = item_data.count
             }
-          elseif entity.prototype.burner_prototype.fuel_categories[prototypes.item[item_data.item].fuel_category] then
+          else
+            for _, category in pairs(prototypes.item[item_data.item].fuel_categories --[[@as string[] ]]) do
+                if entity.prototype.burner_prototype.fuel_categories[category] then
             requests[#requests+1] = {
               entity = entity,
               slot = i,
@@ -512,6 +514,9 @@ script.on_event(defines.events.on_player_selected_area, function (event)
               item = item_data.item,
               count = item_data.count
             }
+                  break
+              end
+            end
           end
         end
       end
