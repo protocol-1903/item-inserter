@@ -511,19 +511,67 @@ script.on_event(defines.events.on_player_selected_area, function (event)
             break
           end
         end
-      elseif entity.type == "artillery-turret" and turret_inventory and turret_inventory.name == "artillery_turret_ammo" and item.ammo_category.name == entity.prototype.ammo then
-        game.print("at 2")
+      elseif entity.type == "artillery-turret" and turret_inventory and turret_inventory.name == "artillery_turret_ammo" then
         for _, category in pairs(prototype.attack_parameters.ammo_categories --[[@as string[] ]]) do
-          if item.ammo_category == category then
-            
+          if item.ammo_category.name == category then
+            local plan = entity.item_request_proxy and entity.item_request_proxy.insert_plan ---@cast plan -?
+            local inventory = {}
+            if plan then
+              for _, request in pairs(plan) do
+                for _, inv in pairs(request.items.in_inventory or {}) do
+                  ---@cast inv InventoryPosition
+                  if inv.inventory == defines.inventory.artillery_turret_ammo then
+                    inventory[inv.stack + 1] = request.id.name
+                  end
+                end
+              end
+            end
+            for i = 1, #turret_inventory do
+              local stack = turret_inventory[i] --[[@as LuaItemStack]]
+              inventory[i] = inventory[i] or stack.valid_for_read and stack.name or nil
+            end
+            for i = 1, #turret_inventory do
+              if inventory[i] == item_data.item or not inventory[i] then
+                requests[#requests+1] = {
+                  entity = entity,
+                  slot = i,
+                  inventory = defines.inventory.artillery_turret_ammo,
+                  item = item_data.item,
+                  count = item_data.count
+                }
+                break
+              end
+            end
             break
           end
         end
       elseif entity.type == "entity-ghost" and entity.ghost_type == "artillery-turret" then
-        game.print("at 2 ghost")
         for _, category in pairs(prototype.attack_parameters.ammo_categories --[[@as string[] ]]) do
-          if item.ammo_category == category then
-            
+          if item.ammo_category.name == category then
+            local plan = entity.insert_plan ---@cast plan -?
+            local inventory = {}
+            if plan then
+              for _, request in pairs(plan) do
+                for _, inv in pairs(request.items.in_inventory or {}) do
+                  ---@cast inv InventoryPosition
+                  if inv.inventory == defines.inventory.artillery_turret_ammo then
+                    inventory[inv.stack + 1] = request.id.name
+                  end
+                end
+              end
+            end
+            for i = 1, prototype.get_inventory_size(defines.inventory.artillery_turret_ammo) do
+              if inventory[i] == item_data.item or not inventory[i] then
+                requests[#requests+1] = {
+                  entity = entity,
+                  slot = i,
+                  inventory = defines.inventory.artillery_turret_ammo,
+                  item = item_data.item,
+                  count = item_data.count
+                }
+                break
+              end
+            end
             break
           end
         end
