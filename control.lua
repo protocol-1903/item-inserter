@@ -9,10 +9,14 @@ local glib = require "__glib__.glib"
 
 local handlers = {}
 
+---@type table<int, {item: string?, count: int}?>
+storage = {}
+
 local function create_gui(player_index)
   local player = game.get_player(player_index) ---@cast player -?
 
-  storage[player_index] = storage[player_index] or {}
+  local item_data = storage[player_index] or {count = 0}
+  storage[player_index] = item_data
 
   player.opened = glib.add(player.gui.screen, {
     args = {type = "frame", name = "item-inserter-gui", direction = "vertical"},
@@ -46,11 +50,11 @@ local function create_gui(player_index)
           args = {type = "flow"},
           style_mods = {vertical_align = "center"},
           {
-            args = {type = "choose-elem-button", name = "item", elem_type = "item", item = storage[player_index].item, tooltip = {"item-inserter-gui.item-tooltip"}},
+            args = {type = "choose-elem-button", name = "item", elem_type = "item", item = item_data.item, tooltip = {"item-inserter-gui.item-tooltip"}},
             _elem_changed = handlers.update_selection
           },
           {
-            args = {type = "textfield", name = "count", numeric = true, text = storage[player_index].count, tooltip = {"item-inserter-gui.count-tooltip"}},
+            args = {type = "textfield", name = "count", numeric = true, text = item_data.count, tooltip = {"item-inserter-gui.count-tooltip"}},
             style_mods = {natural_width = 60, width = 60},
             _text_changed = handlers.update_selection
           },
@@ -124,14 +128,13 @@ handlers.update_settings = function (event)
   local player = game.get_player(event.player_index) ---@cast player -?
   player.mod_settings[event.element.name] = {value = event.element.state}
   local gui = player.gui.screen["item-inserter-gui"]
-  gui.main.sub["furnace-input-priority"].enabled = player.mod_settings["insert-into-furnace-output"].value
+  gui.main.sub["furnace-input-priority"].enabled = player.mod_settings["insert-into-furnace-output"].value --[[@as boolean]]
 end
 
 
 ---@param event EventData.on_gui_elem_changed|EventData.on_gui_text_changed
 handlers.update_selection = function (event)
   local player = game.get_player(event.player_index) ---@cast player -?
-  storage[event.player_index] = storage[event.player_index] or {}
   storage[event.player_index][event.element.name] = event.element.type == "textfield" and (tonumber(event.element.text) or 0) or event.element.elem_value
 end
 
@@ -212,23 +215,21 @@ script.on_event(defines.events.on_player_selected_area, function (event)
 
   if not item_data or item_data.count == 0 then return end
 
-  local ingredient_index = {}
-  local product_index = {}
-  local furnaces_input = {}
-  local furnaces_output = {}
-  local fueled_entities = {}
-  local burnt_entities = {}
-  ---@type {entity: LuaEntity, slot: uint, inventory: defines.inventory, item: ItemID, count: uint}[]
+  ---@type {entity: LuaEntity, slot: uint, inventory: defines.inventory, item: string, count: uint}[]
   local requests = {}
 
   for _, entity in pairs(event.entities) do
 
+    local prototype = entity.type == "entity-ghost" and entity.ghost_prototype or entity.prototype
+
     local crafter_input = entity.get_inventory(defines.inventory.crafter_input) ---@cast crafter_input -?
     local crafter_output = entity.get_inventory(defines.inventory.crafter_output) ---@cast crafter_output -?
+    local turret_inventory = entity.get_inventory(defines.inventory.turret_ammo) or entity.get_inventory(defines.inventory.artillery_turret_ammo) or entity.get_inventory(defines.inventory.artillery_wagon_ammo) ---@cast turret_inventory -?
     local fuel_inventory = entity.get_inventory(defines.inventory.fuel) ---@cast fuel_inventory -?
     local burner = entity.get_inventory(defines.inventory.fuel) ---@cast burner -?
 
     if item_data.item then
+      local item = prototypes.item[item_data.item]
       if entity.type == "assembling-machine" and entity.get_recipe() then
         local recipe = entity.get_recipe() ---@cast recipe -?
         for i, ingredient in pairs(recipe.ingredients) do
@@ -279,7 +280,7 @@ script.on_event(defines.events.on_player_selected_area, function (event)
           elseif crafter_input.can_insert(item_data.item) then
             -- make sure the possible recipe doesn't interfere with any existing outputs (or output requests)
             local plan = entity.item_request_proxy and entity.item_request_proxy.insert_plan ---@cast plan -?
-            for category in pairs(entity.prototype.crafting_categories) do
+            for category in pairs(entity.prototype.crafting_categories --[[@as table<string,true>]]) do
               local recipe_name = ingredients_by_category[category][item_data.item]
               if recipe_name then
                 local valid = true
@@ -322,12 +323,14 @@ script.on_event(defines.events.on_player_selected_area, function (event)
         -- if not yet found or input priority is off, check if its a valid product
         if not found and insert_to_output and crafter_output then
           if recipe then
+            local items = 0
             for _, product in pairs(recipe.products) do
+              if product.type == "item" then items = items + 1 end
               if product.name == item_data.item then
                 found = true
                 requests[#requests+1] = {
                   entity = entity,
-                  slot = 1,
+                  slot = items,
                   inventory = defines.inventory.crafter_output,
                   item = item_data.item,
                   count = item_data.count
@@ -337,7 +340,7 @@ script.on_event(defines.events.on_player_selected_area, function (event)
             end
           else
             -- check if it has a valid recipe that produces this item
-            for category in pairs(entity.prototype.crafting_categories) do
+            for category in pairs(entity.prototype.crafting_categories --[[@as table<string,true>]]) do
               if products_by_category[category][item_data.item] then
                 local plan = entity.item_request_proxy and entity.item_request_proxy.insert_plan ---@cast plan -?
                 local valid_recipe_found = false
@@ -404,7 +407,7 @@ script.on_event(defines.events.on_player_selected_area, function (event)
           elseif crafter_input.can_insert(item_data.item) then
             -- make sure the possible recipe doesn't interfere with any existing outputs (or output requests)
             local plan = entity.item_request_proxy and entity.item_request_proxy.insert_plan ---@cast plan -?
-            for category in pairs(entity.prototype.crafting_categories) do
+            for category in pairs(entity.prototype.crafting_categories --[[@as table<string,true>]]) do
               local recipe_name = ingredients_by_category[category][item_data.item]
               if recipe_name then
                 local valid = true
@@ -444,6 +447,90 @@ script.on_event(defines.events.on_player_selected_area, function (event)
             end
           end
         end
+      elseif entity.type == "ammo-turret" and turret_inventory and turret_inventory.name == "turret_ammo" then
+        for _, category in pairs(prototype.attack_parameters.ammo_categories --[[@as string[] ]]) do
+          if item.ammo_category.name == category then
+            local plan = entity.item_request_proxy and entity.item_request_proxy.insert_plan ---@cast plan -?
+            local inventory = {}
+            if plan then
+              for _, request in pairs(plan) do
+                for _, inv in pairs(request.items.in_inventory or {}) do
+                  ---@cast inv InventoryPosition
+                  if inv.inventory == defines.inventory.turret_ammo then
+                    inventory[inv.stack + 1] = request.id.name
+                  end
+                end
+              end
+            end
+            for i = 1, #turret_inventory do
+              local stack = turret_inventory[i] --[[@as LuaItemStack]]
+              inventory[i] = inventory[i] or stack.valid_for_read and stack.name or nil
+            end
+            for i = 1, #turret_inventory do
+              if inventory[i] == item_data.item or not inventory[i] then
+                requests[#requests+1] = {
+                  entity = entity,
+                  slot = i,
+                  inventory = defines.inventory.turret_ammo,
+                  item = item_data.item,
+                  count = item_data.count
+                }
+                break
+              end
+            end
+            break
+          end
+        end
+      elseif entity.type == "entity-ghost" and entity.ghost_type == "ammo-turret" then
+        for _, category in pairs(prototype.attack_parameters.ammo_categories --[[@as string[] ]]) do
+          if item.ammo_category.name == category then
+            local plan = entity.insert_plan ---@cast plan -?
+            local inventory = {}
+            if plan then
+              for _, request in pairs(plan) do
+                for _, inv in pairs(request.items.in_inventory or {}) do
+                  ---@cast inv InventoryPosition
+                  if inv.inventory == defines.inventory.turret_ammo then
+                    inventory[inv.stack + 1] = request.id.name
+                  end
+                end
+              end
+            end
+            for i = 1, prototype.get_inventory_size(defines.inventory.turret_ammo) do
+              if inventory[i] == item_data.item or not inventory[i] then
+                requests[#requests+1] = {
+                  entity = entity,
+                  slot = i,
+                  inventory = defines.inventory.turret_ammo,
+                  item = item_data.item,
+                  count = item_data.count
+                }
+                break
+              end
+            end
+            break
+          end
+        end
+      elseif entity.type == "artillery-turret" and turret_inventory and turret_inventory.name == "artillery_turret_ammo" and item.ammo_category.name == entity.prototype.ammo then
+        game.print("at 2")
+        for _, category in pairs(prototype.attack_parameters.ammo_categories --[[@as string[] ]]) do
+          if item.ammo_category == category then
+            
+            break
+          end
+        end
+      elseif entity.type == "entity-ghost" and entity.ghost_type == "artillery-turret" then
+        game.print("at 2 ghost")
+        for _, category in pairs(prototype.attack_parameters.ammo_categories --[[@as string[] ]]) do
+          if item.ammo_category == category then
+            
+            break
+          end
+        end
+      elseif entity.type == "artillery-wagon" and turret_inventory then
+        -- game.print("atw")
+      elseif entity.type == "entity-ghost" and entity.ghost_type == "artillery-wagon" then
+        -- game.print("atw ghost")
       elseif entity.type == "entity-ghost" then
         if entity.ghost_type == "assembling-machine" and entity.get_recipe() then
           game.print("ghost assembling machine not yet implemented, try again later", {skip = defines.print_skip.never})
@@ -507,13 +594,13 @@ script.on_event(defines.events.on_player_selected_area, function (event)
           else
             for _, category in pairs(prototypes.item[item_data.item].fuel_categories --[[@as string[] ]]) do
                 if entity.prototype.burner_prototype.fuel_categories[category] then
-            requests[#requests+1] = {
-              entity = entity,
-              slot = i,
-              inventory = defines.inventory.fuel,
-              item = item_data.item,
-              count = item_data.count
-            }
+                  requests[#requests+1] = {
+                    entity = entity,
+                    slot = i,
+                    inventory = defines.inventory.fuel,
+                    item = item_data.item,
+                    count = item_data.count
+                  }
                   break
               end
             end
@@ -529,7 +616,7 @@ script.on_event(defines.events.on_player_selected_area, function (event)
     if request.entity.type ~= "entity-ghost" then
       local proxy = proxies[request.entity.unit_number] or request.entity.item_request_proxy
       if proxy then
-        local insert_plan = proxy.insert_plan
+        local insert_plan = proxy.insert_plan --[[@as BlueprintInsertPlan[] ]]
         local found_request
         for _, plan in pairs(insert_plan) do
           local item = plan.id.name
@@ -581,14 +668,37 @@ script.on_event(defines.events.on_player_selected_area, function (event)
       end
     else
       local insert_plan = request.entity.insert_plan or {}
-      insert_plan[#insert_plan+1] = {
-        id = { name = request.item },
-        items = { in_inventory = {{
-          inventory = request.inventory,
-          stack = request.slot - 1,
-          count = request.count
-        }}}
-      }
+      local found
+      for _, plan in pairs(insert_plan) do
+        if plan.id.name == request.item then
+          for _, inv in pairs(plan.items.in_inventory or {}) do
+            ---@cast inv InventoryPosition
+            if inv.inventory == request.inventory and inv.stack == request.slot - 1 then
+              inv.count = ((inv.count or 1) + request.count) --[[@as int]]
+              found = true
+              break
+            end
+          end
+          if not found then
+            plan.items.in_inventory[#plan.items.in_inventory + 1] = {
+              inventory = request.inventory,
+              stack = request.slot - 1,
+              count = request.count
+            }
+            found = true
+          end
+        end
+      end
+      if not found then
+        insert_plan[#insert_plan+1] = {
+          id = { name = request.item },
+          items = { in_inventory = {{
+            inventory = request.inventory,
+            stack = request.slot - 1,
+            count = request.count
+          }}}
+        }
+      end
       request.entity.insert_plan = insert_plan
     end
   end

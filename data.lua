@@ -12,7 +12,7 @@ data:extend{
     select = {
       border_color = {0, 0.8, 0, 1},
       cursor_box_type = "entity",
-      entity_type_filters = {"assembling-machine", "furnace", "reactor"},
+      entity_type_filters = {"assembling-machine", "furnace", "ammo-turret", "artillery-turret", "artillery-wagon", "locomotive", "reactor"},
       mode = {
         "buildable-type",
         "same-force",
@@ -22,7 +22,7 @@ data:extend{
     alt_select = {
       border_color = {0, 0.8, 0, 1},
       cursor_box_type = "entity",
-      entity_type_filters = {"assembling-machine", "furnace", "reactor"},
+      entity_type_filters = {"assembling-machine", "furnace", "ammo-turret", "artillery-turret", "artillery-wagon", "locomotive", "reactor"},
       mode = {
         "buildable-type",
         "same-force",
