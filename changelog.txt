@@ -4,6 +4,9 @@ Date: ????
   Features:
     - Added support for ammo turrets and ammo turret ghosts. Resolves https://github.com/protocol-1903/bugreports/issues/268
     - Added support for artillery turrets and artillery turret ghosts
+    - Added support for modules
+  Changes:
+    - Target selection is now a dropdown between general, fuel, and modules
   Bugfixes:
     - Fixed fuel insertion not working on 2.1.20+
 ---------------------------------------------------------------------------------------------------

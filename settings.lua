@@ -19,9 +19,14 @@ data:extend{
     default_value = true,
   },
   {
-    type = "bool-setting",
-    name = "insert-into-fuel",
+    type = "string-setting",
+    name = "item-insertion-targets",
     setting_type = "runtime-per-user",
-    default_value = false,
+    default_value = "general",
+    allowed_values = {
+      "general",
+      "fuel",
+      "modules"
+    }
   },
 }
