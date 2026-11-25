@@ -184,6 +184,91 @@ script.on_event(defines.events.on_lua_shortcut, function (event)
   end
 end)
 
+---@param entity LuaEntity
+---@param request {slot: uint, inventory: defines.inventory, item: string, count: uint, quality: string?}
+---@return uint
+local function add_request_to_entity(entity, request)
+  if entity.type ~= "entity-ghost" then
+    local proxy = entity.item_request_proxy
+    if proxy then
+      local insert_plan = proxy.insert_plan --[[@as BlueprintInsertPlan[] ]]
+      for _, plan in pairs(insert_plan) do
+        if plan.id.name == request.item and plan.id.quality == request.quality then
+          for _, inv in pairs(plan.items.in_inventory or {}) do
+            if inv.inventory == request.inventory and inv.stack == request.slot - 1 then
+              inv.count = (inv.count or 1) + request.count
+              goto continue
+            end
+          end
+          plan.items.in_inventory[#plan.items.in_inventory+1] = {
+            inventory = request.inventory,
+            stack = request.slot - 1,
+            count = request.count
+          }
+          goto continue
+        end
+      end
+      insert_plan[#insert_plan+1] = {
+        id = { name = request.item, quality = request.quality },
+        items = { in_inventory = {{
+          inventory = request.inventory,
+          stack = request.slot - 1,
+          count = request.count
+        }}}
+      }
+      ::continue::
+      proxy.insert_plan = insert_plan
+      return request.count
+    else
+      entity.surface.create_entity{
+        name = "item-request-proxy",
+        position = entity.position,
+        force = entity.force,
+        target = entity,
+        modules = {{
+          id = { name = request.item, quality = request.quality },
+          items = { in_inventory = {{
+            inventory = request.inventory,
+            stack = request.slot - 1,
+            count = request.count
+          }}}
+        }}
+      }
+      return request.count
+    end
+  else
+    local insert_plan = entity.insert_plan or {}
+    for _, plan in pairs(insert_plan) do
+      if plan.id.name == request.item and plan.id.quality == request.quality then
+        for _, inv in pairs(plan.items.in_inventory or {}) do
+          ---@cast inv InventoryPosition
+          if inv.inventory == request.inventory and inv.stack == request.slot - 1 then
+            inv.count = (inv.count or 1) + request.count
+            goto continue
+          end
+        end
+        plan.items.in_inventory[#plan.items.in_inventory + 1] = {
+          inventory = request.inventory,
+          stack = request.slot - 1,
+          count = request.count
+        }
+        goto continue
+      end
+    end
+    insert_plan[#insert_plan+1] = {
+      id = { name = request.item, quality = request.quality },
+      items = { in_inventory = {{
+        inventory = request.inventory,
+        stack = request.slot - 1,
+        count = request.count
+      }}}
+    }
+    ::continue::
+    entity.insert_plan = insert_plan
+    return request.count
+  end
+end
+
 ---@type {[data.RecipeCategoryID]: {[data.ItemID]: LuaRecipePrototype[]}}
 local products_by_category = {} -- a list of all items that can be crafted by this category
 ---@type {[data.RecipeCategoryID]: {[data.ItemID]: RecipeID}}
@@ -248,8 +333,7 @@ script.on_event(defines.events.on_player_selected_area, function (event)
     return
   end
 
-  ---@type {entity: LuaEntity, slot: uint, inventory: defines.inventory, item: string, count: uint}[]
-  local requests = {}
+  local requests = 0
 
   for _, entity in pairs(event.entities) do
 
@@ -300,26 +384,26 @@ script.on_event(defines.events.on_player_selected_area, function (event)
         local recipe = entity.get_recipe() ---@cast recipe -?
         for i, ingredient in pairs(recipe.ingredients) do
           if ingredient.name == item_data.item and crafter_input.can_insert(item_data.item) then
-            requests[#requests+1] = {
+            add_request_to_entity(entity, {
               entity = entity,
               slot = i,
               inventory = defines.inventory.crafter_input,
               item = item_data.item,
               count = item_data.count
-            }
-            break
+            })
+            requests = requests + 1
           end
         end
         for i, product in pairs(recipe.products) do
           if product.name == item_data.item and crafter_output.can_insert(item_data.item) then
-            requests[#requests+1] = {
+            add_request_to_entity(entity, {
               entity = entity,
               slot = i,
               inventory = defines.inventory.crafter_output,
               item = item_data.item,
               count = item_data.count
-            }
-            break
+            })
+            requests = requests + 1
           end
         end
       elseif ghost and type == "assembling-machine" then
@@ -328,21 +412,20 @@ script.on_event(defines.events.on_player_selected_area, function (event)
         local recipe = entity.get_recipe() ---@cast recipe -?
         local input_priority = player.mod_settings["furnace-input-priority"].value
         local insert_to_output = player.mod_settings["insert-into-furnace-output"].value
-        local found
-        -- if input priority is on, check if its a valid ingredient
-        if input_priority and crafter_input then
+
+        local function check_furnace_input()
           if recipe then
             for _, ingredient in pairs(recipe.ingredients) do
               if ingredient.name == item_data.item then
-                found = true
-                requests[#requests+1] = {
+                add_request_to_entity(entity, {
                   entity = entity,
                   slot = 1,
                   inventory = defines.inventory.crafter_input,
                   item = item_data.item,
                   count = item_data.count
-                }
-                break
+                })
+                requests = requests + 1
+                return true
               end
             end
           elseif crafter_input.can_insert(item_data.item) then
@@ -351,59 +434,61 @@ script.on_event(defines.events.on_player_selected_area, function (event)
             for category in pairs(entity.prototype.crafting_categories --[[@as table<string,true>]]) do
               local recipe_name = ingredients_by_category[category][item_data.item]
               if recipe_name then
-                local valid = true
                 local i = 1
                 for _, product in pairs(prototypes.recipe[recipe_name].products) do
                   if product.type == "item" then
                     if crafter_output[i].valid_for_read and product.name ~= crafter_output[i].name then
-                      valid = false
+                      goto skip
                     elseif not crafter_output[i].valid_for_read then
                       for _, request in pairs(plan or {}) do
                         for _, inv in pairs(request.items.in_inventory or {}) do
                           ---@cast inv InventoryPosition
                           if inv.inventory == defines.inventory.crafter_output and inv.stack == i - 1 and request.id.name ~= product then
                             -- invalid, this item request collides with whats part of the recipe
-                            valid = false
-                            break
+                            goto skip
                           end
                         end
-                        if not valid then break end
                       end
                     end
                     i = i + 1
                   end
-                  if not valid then break end
                 end
-                if valid then
-                  found = true
-                  requests[#requests+1] = {
-                    entity = entity,
-                    slot = 1,
-                    inventory = defines.inventory.crafter_input,
-                    item = item_data.item,
-                    count = item_data.count
-                  }
-                end
+                add_request_to_entity(entity, {
+                  entity = entity,
+                  slot = 1,
+                  inventory = defines.inventory.crafter_input,
+                  item = item_data.item,
+                  count = item_data.count
+                })
+                requests = requests + 1
+                do return true end
+                ::skip::
               end
             end
           end
         end
+
+        -- if input priority is on, check if its a valid ingredient
+        if input_priority and crafter_input then
+          if check_furnace_input() then goto continue end
+        end
+
         -- if not yet found or input priority is off, check if its a valid product
-        if not found and insert_to_output and crafter_output then
+        if insert_to_output and crafter_output then
           if recipe then
-            local items = 0
+            local i = 0
             for _, product in pairs(recipe.products) do
-              if product.type == "item" then items = items + 1 end
+              if product.type == "item" then i = i + 1 end
               if product.name == item_data.item then
-                found = true
-                requests[#requests+1] = {
+                add_request_to_entity(entity, {
                   entity = entity,
-                  slot = items,
+                  slot = i,
                   inventory = defines.inventory.crafter_output,
                   item = item_data.item,
                   count = item_data.count
-                }
-                break
+                })
+                requests = requests + 1
+                goto continue
               end
             end
           else
@@ -411,110 +496,48 @@ script.on_event(defines.events.on_player_selected_area, function (event)
             for category in pairs(entity.prototype.crafting_categories --[[@as table<string,true>]]) do
               if products_by_category[category][item_data.item] then
                 local plan = entity.item_request_proxy and entity.item_request_proxy.insert_plan ---@cast plan -?
-                local valid_recipe_found = false
                 -- make sure a valid recipe exists
                 for _, pos_recipe in pairs(products_by_category[category][item_data.item]) do
-                  local valid_recipe = true
-                  ---@cast pos_recipe LuaRecipePrototype
                   for _, ingredient in pairs(pos_recipe.ingredients) do
                     -- if the ingredients of this possible recipe do not match what is in the machine, it is not valid
                     if ingredient.type == "item" and crafter_input[1].valid_for_read and crafter_input[1].name ~= ingredient.name then
-                      valid_recipe = false
+                      goto skip
                     elseif ingredient.type == "item" and plan then
                       for _, request in pairs(plan or {}) do
                         for _, inv in pairs(request.items.in_inventory or {}) do
                           ---@cast inv InventoryPosition
                           if inv.inventory == defines.inventory.crafter_input and inv.stack == 0 and request.id.name ~= ingredient.name then
                             -- invalid, this item request collides with whats part of the recipe
-                            valid_recipe = false
-                            break
+                            goto skip
                           end
                         end
-                        if not valid_recipe then break end
                       end
-                    elseif ingredient.type == "fluid" and entity.fluids_count ~= 0 and entity.get_fluid(1) and entity.get_fluid(1)  then
-                      valid_recipe = false
+                    elseif ingredient.type == "fluid" and entity.fluids_count ~= 0 and entity.get_fluid(1) and entity.get_fluid(1) then
+                      goto skip
                     end
                   end
-                  if valid_recipe then
-                    valid_recipe_found = true
-                    break
-                  end
-                end
-                if valid_recipe_found then
-                  found = true
-                  requests[#requests+1] = {
+                  add_request_to_entity(entity, {
                     entity = entity,
                     slot = 1,
                     inventory = defines.inventory.crafter_output,
                     item = item_data.item,
                     count = item_data.count
-                  }
+                  })
+                  requests = requests + 1
+                  goto continue
+                  ::skip::
                 end
                 break
               end
             end
           end
         end
+
         -- if product was not found and input priority is off, check if its a valid ingredient
-        if not found and crafter_input and not input_priority then
-          if recipe then
-            for _, ingredient in pairs(recipe.ingredients) do
-              if ingredient.name == item_data.item then
-                found = true
-                requests[#requests+1] = {
-                  entity = entity,
-                  slot = 1,
-                  inventory = defines.inventory.crafter_input,
-                  item = item_data.item,
-                  count = item_data.count
-                }
-                break
-              end
-            end
-          elseif crafter_input.can_insert(item_data.item) then
-            -- make sure the possible recipe doesn't interfere with any existing outputs (or output requests)
-            local plan = entity.item_request_proxy and entity.item_request_proxy.insert_plan ---@cast plan -?
-            for category in pairs(entity.prototype.crafting_categories --[[@as table<string,true>]]) do
-              local recipe_name = ingredients_by_category[category][item_data.item]
-              if recipe_name then
-                local valid = true
-                local i = 1
-                for _, product in pairs(prototypes.recipe[recipe_name].products) do
-                  if product.type == "item" then
-                    if crafter_output[i].valid_for_read and product.name ~= crafter_output[i].name then
-                      valid = false
-                    elseif not crafter_output[i].valid_for_read then
-                      for _, request in pairs(plan or {}) do
-                        for _, inv in pairs(request.items.in_inventory or {}) do
-                          ---@cast inv InventoryPosition
-                          if inv.inventory == defines.inventory.crafter_output and inv.stack == i - 1 and request.id.name ~= product then
-                            -- invalid, this item request collides with whats part of the recipe
-                            valid = false
-                            break
-                          end
-                        end
-                        if not valid then break end
-                      end
-                    end
-                    i = i + 1
-                  end
-                  if not valid then break end
-                end
-                if valid then
-                  found = true
-                  requests[#requests+1] = {
-                    entity = entity,
-                    slot = 1,
-                    inventory = defines.inventory.crafter_input,
-                    item = item_data.item,
-                    count = item_data.count
-                  }
-                end
-              end
-            end
-          end
+        if crafter_input and not input_priority then
+          if check_furnace_input() then goto continue end
         end
+
       elseif ghost and type == "furnace" then
         -- TODO
       elseif not ghost and type == "ammo-turret" and turret_inventory then
@@ -538,14 +561,15 @@ script.on_event(defines.events.on_player_selected_area, function (event)
             end
             for i = 1, #turret_inventory do
               if inventory[i] == item_data.item or not inventory[i] then
-                requests[#requests+1] = {
+                add_request_to_entity(entity, {
                   entity = entity,
                   slot = i,
                   inventory = defines.inventory.turret_ammo,
                   item = item_data.item,
                   count = item_data.count
-                }
-                break
+                })
+                requests = requests + 1
+                goto continue
               end
             end
             break
@@ -568,14 +592,15 @@ script.on_event(defines.events.on_player_selected_area, function (event)
             end
             for i = 1, prototype.get_inventory_size(defines.inventory.turret_ammo) do
               if inventory[i] == item_data.item or not inventory[i] then
-                requests[#requests+1] = {
+                add_request_to_entity(entity, {
                   entity = entity,
                   slot = i,
                   inventory = defines.inventory.turret_ammo,
                   item = item_data.item,
                   count = item_data.count
-                }
-                break
+                })
+                requests = requests + 1
+                goto continue
               end
             end
             break
@@ -602,14 +627,15 @@ script.on_event(defines.events.on_player_selected_area, function (event)
             end
             for i = 1, #turret_inventory do
               if inventory[i] == item_data.item or not inventory[i] then
-                requests[#requests+1] = {
+                add_request_to_entity(entity, {
                   entity = entity,
                   slot = i,
                   inventory = defines.inventory.artillery_turret_ammo,
                   item = item_data.item,
                   count = item_data.count
-                }
-                break
+                })
+                requests = requests + 1
+                goto continue
               end
             end
             break
@@ -632,14 +658,15 @@ script.on_event(defines.events.on_player_selected_area, function (event)
             end
             for i = 1, prototype.get_inventory_size(defines.inventory.artillery_turret_ammo) do
               if inventory[i] == item_data.item or not inventory[i] then
-                requests[#requests+1] = {
+                add_request_to_entity(entity, {
                   entity = entity,
                   slot = i,
                   inventory = defines.inventory.artillery_turret_ammo,
                   item = item_data.item,
                   count = item_data.count
-                }
-                break
+                })
+                requests = requests + 1
+                goto continue
               end
             end
             break
@@ -656,13 +683,14 @@ script.on_event(defines.events.on_player_selected_area, function (event)
         local i = 1
         for _, ingredient in pairs(recipe.ingredients) do
           if ingredient.type == "item" then
-            requests[#requests+1] = {
+            add_request_to_entity(entity, {
               entity = entity,
               slot = i,
               inventory = defines.inventory.crafter_input,
               item = ingredient.name,
               count = item_data.count * ingredient.amount --[[@as int]]
-            }
+            })
+            requests = requests + 1
             i = i + 1
           end
         end
@@ -699,14 +727,15 @@ script.on_event(defines.events.on_player_selected_area, function (event)
         end
         for i = 1, #fuel_inventory do
           if inventory[i] == item_data.item or not inventory[i] then
-            requests[#requests+1] = {
+            add_request_to_entity(entity, {
               entity = entity,
               slot = i,
               inventory = defines.inventory.fuel,
               item = item_data.item,
               count = item_data.count
-            }
-            break
+            })
+            requests = requests + 1
+            goto continue
           end
         end
       end
@@ -735,18 +764,20 @@ script.on_event(defines.events.on_player_selected_area, function (event)
         end
         for i = 1, #module_inventory do
           if not inventory[i] then
-            requests[#requests+1] = {
+            add_request_to_entity(entity, {
               entity = entity,
               slot = i,
               inventory = inventory_index,
               item = item_data.item,
               count = item_data.count
-            }
-            break
+            })
+            requests = requests + 1
+            goto continue
           end
         end
       end
     end
+    ::continue::
   end
 
   if #requests == 0 then
@@ -757,116 +788,15 @@ script.on_event(defines.events.on_player_selected_area, function (event)
     return
   end
 
-  local total_items = 0
-  ---@type {[uint]: LuaEntity?}
-  local proxies = {}
-  for _, request in pairs(requests) do
-    if request.entity.type ~= "entity-ghost" then
-      local proxy = proxies[request.entity.unit_number --[[@as uint]]] or request.entity.item_request_proxy
-      if proxy then
-        local insert_plan = proxy.insert_plan --[[@as BlueprintInsertPlan[] ]]
-        local found_request
-        for _, plan in pairs(insert_plan) do
-          local item = plan.id.name
-          if item == request.item then
-            found_request = true
-            local found
-            for _, inv in pairs(plan.items.in_inventory or {}) do
-              if inv.inventory == request.inventory and inv.stack == request.slot - 1 then
-                inv.count = (inv.count or 1) + request.count
-                total_items = total_items + request.count
-                found = true
-              end
-            end
-            if not found then
-              plan.items.in_inventory[#plan.items.in_inventory+1] = {
-                inventory = request.inventory,
-                stack = request.slot - 1,
-                count = request.count
-              }
-              total_items = total_items + request.count
-            end
-            break
-          end
-        end
-        if not found_request then
-          insert_plan[#insert_plan+1] = {
-            id = { name = request.item },
-            items = { in_inventory = {{
-              inventory = request.inventory,
-              stack = request.slot - 1,
-              count = request.count
-            }}}
-          }
-          total_items = total_items + request.count
-        end
-        proxy.insert_plan = insert_plan
-      else
-        proxies[request.entity.unit_number --[[@as uint]]] = request.entity.surface.create_entity{
-          name = "item-request-proxy",
-          position = request.entity.position,
-          force = request.entity.force,
-          target = request.entity,
-          modules = {{
-            id = { name = request.item },
-            items = { in_inventory = {{
-              inventory = request.inventory,
-              stack = request.slot - 1,
-              count = request.count
-            }}}
-          }}
-        }
-        total_items = total_items + request.count
-      end
-    else
-      local insert_plan = request.entity.insert_plan or {}
-      local found
-      for _, plan in pairs(insert_plan) do
-        if plan.id.name == request.item then
-          for _, inv in pairs(plan.items.in_inventory or {}) do
-            ---@cast inv InventoryPosition
-            if inv.inventory == request.inventory and inv.stack == request.slot - 1 then
-              inv.count = ((inv.count or 1) + request.count) --[[@as int]]
-              total_items = total_items + request.count
-              found = true
-              break
-            end
-          end
-          if not found then
-            plan.items.in_inventory[#plan.items.in_inventory + 1] = {
-              inventory = request.inventory,
-              stack = request.slot - 1,
-              count = request.count
-            }
-            total_items = total_items + request.count
-            found = true
-          end
-        end
-      end
-      if not found then
-        insert_plan[#insert_plan+1] = {
-          id = { name = request.item },
-          items = { in_inventory = {{
-            inventory = request.inventory,
-            stack = request.slot - 1,
-            count = request.count
-          }}}
-        }
-        total_items = total_items + request.count
-      end
-      request.entity.insert_plan = insert_plan
-    end
-  end
-
-  if total_items == 0 then
-    player.create_local_flying_text{
-      create_at_cursor = true,
-      text = {"notification.no-items-requested"}
-    }
-  else
-    player.create_local_flying_text{
-      create_at_cursor = true,
-      text = {"notification.requested-n-items", total_items}
-    }
-  end
+  -- if total_items == 0 then
+  --   player.create_local_flying_text{
+  --     create_at_cursor = true,
+  --     text = {"notification.no-items-requested"}
+  --   }
+  -- else
+  --   player.create_local_flying_text{
+  --     create_at_cursor = true,
+  --     text = {"notification.requested-n-items", total_items}
+  --   }
+  -- end
 end)
